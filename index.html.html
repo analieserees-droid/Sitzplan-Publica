@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sitzplatz-Planung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --co:#3a7bd5; --co-l:#e8f1fc; --co-t:#1e4d99;
+    --bk:#3e9c6a; --bk-l:#e4f5ec; --bk-t:#1e6040;
+    --im:#8a5dc8; --im-l:#f0e9fa; --im-t:#5a3490;
+    --hr:#d4813a; --hr-l:#fdf0e2; --hr-t:#8c4e1a;
+    --it:#c0392b; --it-l:#fde8e7; --it-t:#7d1a13;
+    --bg:#f5f5f3; --card:#fff; --border:#e0ddd8;
+    --text:#1a1917; --muted:#6b7280; --radius:10px;
+    --shadow:0 1px 3px rgba(0,0,0,.08);
+  }
+  body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--text); font-size:14px; line-height:1.5; min-height:100vh; }
+
+  /* Header */
+  header { background:var(--card); border-bottom:1px solid var(--border); padding:0 2rem; display:flex; align-items:center; justify-content:space-between; height:56px; position:sticky; top:0; z-index:40; }
+  .logo { font-size:15px; font-weight:600; letter-spacing:-.01em; }
+  .logo span { color:var(--muted); font-weight:400; }
+  .tabs { display:flex; gap:4px; background:#ede9e4; border-radius:8px; padding:3px; }
+  .tab { padding:6px 16px; border-radius:6px; border:none; background:none; font-size:13px; font-family:inherit; cursor:pointer; color:var(--muted); transition:all .15s; font-weight:500; }
+  .tab.active { background:white; color:var(--text); box-shadow:var(--shadow); }
+
+  main { max-width:1140px; margin:0 auto; padding:1.5rem 2rem; }
+  .view { display:none; }
+  .view.active { display:block; }
+
+  /* Legend */
+  .legend { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:1.25rem; background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:10px 16px; align-items:center; }
+  .legend-label { font-size:12px; color:var(--muted); font-weight:500; margin-right:4px; }
+  .legend-item { display:flex; align-items:center; gap:6px; font-size:12px; }
+  .leg-dot { width:10px; height:10px; border-radius:50%; }
+
+  /* Date bar */
+  .date-bar { display:flex; align-items:center; gap:10px; margin-bottom:1.25rem; flex-wrap:wrap; position:relative; }
+  .date-bar label { font-size:13px; font-weight:500; color:var(--muted); }
+  .date-display {
+    display:flex; align-items:center; gap:8px;
+    padding:7px 14px; border:1px solid var(--border); border-radius:8px;
+    background:var(--card); cursor:pointer; font-size:14px; font-weight:500;
+    user-select:none; min-width:200px;
+  }
+  .date-display:hover { background:var(--bg); }
+  .date-display .weekday { color:var(--muted); font-weight:400; font-size:13px; }
+  .date-nav button, .today-btn {
+    padding:7px 12px; border:1px solid var(--border); border-radius:8px;
+    background:var(--card); cursor:pointer; font-size:13px; color:var(--text);
+    transition:background .12s; font-family:inherit; font-weight:500;
+  }
+  .date-nav { display:flex; gap:4px; }
+  .date-nav button:hover, .today-btn:hover { background:var(--bg); }
+
+  /* Inline mini-calendar dropdown */
+  .mini-cal-wrap {
+    position:absolute; top:calc(100% + 4px); left:0; z-index:100;
+    background:var(--card); border:1px solid var(--border); border-radius:12px;
+    box-shadow:0 8px 32px rgba(0,0,0,.14); padding:12px;
+    width:280px; display:none;
+  }
+  .mini-cal-wrap.open { display:block; }
+  .mini-cal-nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .mini-cal-nav button { background:none; border:none; cursor:pointer; font-size:16px; color:var(--text); padding:2px 6px; border-radius:4px; }
+  .mini-cal-nav button:hover { background:var(--bg); }
+  .mini-cal-title { font-size:13px; font-weight:600; }
+  .mini-cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+  .mini-day-name { font-size:10px; font-weight:600; color:var(--muted); text-align:center; padding:3px 0; }
+  .mini-day {
+    font-size:12px; text-align:center; padding:5px 2px;
+    border-radius:6px; cursor:pointer; color:var(--text);
+  }
+  .mini-day:hover { background:var(--bg); }
+  .mini-day.other { color:#ccc; cursor:default; }
+  .mini-day.today { background:var(--co-l); color:var(--co-t); font-weight:600; }
+  .mini-day.selected { background:var(--co); color:white; font-weight:600; }
+
+  /* Save button */
+  .save-btn {
+    margin-left:auto; display:flex; align-items:center; gap:6px;
+    padding:7px 18px; background:#1a1917; color:white; border:none;
+    border-radius:8px; font-family:inherit; font-size:13px; font-weight:600;
+    cursor:pointer; transition:opacity .12s;
+  }
+  .save-btn:hover { opacity:.85; }
+  .save-btn.saved { background:#3e9c6a; }
+
+  /* Office */
+  .office {
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:2rem 2.5rem; display:flex; flex-direction:column; gap:16px; align-items:center;
+  }
+  .office-wall { width:100%; height:5px; background:#888; border-radius:2px; opacity:.18; }
+  .office-divider {
+    width:100%; display:flex; align-items:center; gap:10px;
+    color:var(--muted); font-size:10px; font-weight:600; letter-spacing:.07em; text-transform:uppercase;
+  }
+  .office-divider::before, .office-divider::after {
+    content:''; flex:1; height:2px;
+    background:repeating-linear-gradient(90deg,var(--border) 0,var(--border) 6px,transparent 6px,transparent 10px);
+  }
+
+  /* Dept block */
+  .dept-block { width:100%; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+  .dept-header { display:flex; align-items:center; gap:8px; padding:8px 14px; font-size:11px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; border-bottom:1px solid var(--border); }
+  .dept-dot { width:8px; height:8px; border-radius:50%; }
+
+  /* Island layout: seats face each other across a gap – no box in middle */
+  .island-area { padding:16px 20px; display:flex; justify-content:center; }
+  .island-4 {
+    display:grid; grid-template-columns:1fr 32px 1fr; grid-template-rows:auto auto;
+    gap:6px 0; align-items:center; justify-items:center;
+  }
+  .island-2 {
+    display:grid; grid-template-columns:1fr 32px 1fr; grid-template-rows:auto;
+    gap:0; align-items:center; justify-items:center;
+  }
+  .island-3 {
+    display:grid; grid-template-columns:1fr 32px 1fr; grid-template-rows:auto auto;
+    gap:6px 0; align-items:center; justify-items:center;
+  }
+  .table-gap-4 { grid-column:2; grid-row:1 / span 2; }
+  .table-gap-2 { grid-column:2; }
+
+  /* Seat */
+  .seat {
+    width:100px; height:72px; border-radius:8px;
+    border:1.5px dashed var(--border); background:#fafafa;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    cursor:pointer; padding:6px; transition:transform .1s, box-shadow .1s;
+    text-align:center; margin:4px;
+  }
+  .seat:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,0,0,.1); }
+  .seat.booked { border-style:solid; border-width:1.5px; }
+  .seat-id { font-size:8px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; opacity:.45; margin-bottom:3px; }
+  .seat-name-txt { font-size:11px; font-weight:600; line-height:1.2; }
+  .seat-time-txt { font-size:9px; opacity:.75; margin-top:2px; }
+  .seat-empty-txt { font-size:11px; color:#bbb; }
+
+  /* seat rotation hints for top/bottom */
+  .seat-top .seat-time-txt, .seat-top .seat-name-txt { }
+  /* spacers for missing seats */
+  .seat-spacer { width:100px; height:72px; margin:4px; }
+
+  /* Calendar tab */
+  .cal-header-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; }
+  .cal-month-title { font-size:16px; font-weight:600; }
+  .cal-nav-btns { display:flex; gap:4px; }
+  .cal-nav-btns button { padding:6px 14px; border:1px solid var(--border); border-radius:8px; background:var(--card); cursor:pointer; font-size:13px; font-family:inherit; color:var(--text); transition:background .12s; }
+  .cal-nav-btns button:hover { background:var(--bg); }
+  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .cal-day-name { font-size:11px; font-weight:600; color:var(--muted); text-align:center; padding:6px 0; letter-spacing:.04em; text-transform:uppercase; }
+  .cal-day { background:var(--card); border:1px solid var(--border); border-radius:8px; min-height:88px; padding:6px 7px; cursor:pointer; transition:background .1s; }
+  .cal-day:hover { background:#f9f8f6; }
+  .cal-day.other-month { opacity:.4; cursor:default; }
+  .cal-day.today { border-color:var(--co); }
+  .cal-day.today .cal-daynum { color:var(--co); font-weight:700; }
+  .cal-daynum { font-size:12px; font-weight:500; color:var(--muted); margin-bottom:3px; }
+  .cal-entry { font-size:9px; font-weight:600; padding:2px 4px; border-radius:3px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  /* Modal */
+  .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; z-index:200; opacity:0; pointer-events:none; transition:opacity .18s; }
+  .modal-bg.open { opacity:1; pointer-events:all; }
+  .modal { background:var(--card); border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.18); padding:1.75rem; width:380px; max-width:95vw; transform:translateY(8px); transition:transform .18s; }
+  .modal-bg.open .modal { transform:translateY(0); }
+  .modal-title { font-size:16px; font-weight:600; margin-bottom:1.25rem; }
+  .dept-badge { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; margin-left:8px; vertical-align:middle; }
+  .form-row { margin-bottom:13px; }
+  .form-row label { font-size:12px; font-weight:500; color:var(--muted); display:block; margin-bottom:4px; }
+  .form-row input, .form-row select { width:100%; font-family:inherit; font-size:14px; padding:8px 12px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text); transition:border-color .12s; }
+  .form-row input:focus, .form-row select:focus { outline:none; border-color:var(--co); box-shadow:0 0 0 3px rgba(58,123,213,.1); }
+  .form-row.inline { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .form-row.inline > div label { display:block; }
+  .modal-btns { display:flex; gap:8px; margin-top:1.25rem; }
+  .modal-btns button { flex:1; padding:10px; font-family:inherit; font-size:13px; font-weight:500; border-radius:8px; cursor:pointer; border:1px solid var(--border); transition:background .12s, opacity .12s; }
+  .btn-cancel { background:var(--bg); color:var(--text); }
+  .btn-cancel:hover { background:var(--border); }
+  .btn-delete { background:#fde8e7; color:var(--it-t); border-color:#f5c6c4; display:none; }
+  .btn-delete:hover { background:#fbd4d2; }
+  .btn-save { background:var(--co); color:white; border-color:transparent; }
+  .btn-save:hover { opacity:.9; }
+
+  /* dept selector */
+  .dept-select-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .dept-opt { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:7px 4px; border:1.5px solid var(--border); border-radius:8px; cursor:pointer; font-size:11px; font-weight:600; transition:all .12s; background:var(--card); text-align:center; line-height:1.2; }
+  .dept-opt:hover { border-color:#aaa; }
+  .dept-opt.selected { border-width:2px; }
+  .dept-opt .d-dot { width:9px; height:9px; border-radius:50%; }
+
+  /* Setup banner */
+  .setup-banner { background:#fff8e1; border:1px solid #f0c040; border-radius:10px; padding:1rem 1.25rem; margin-bottom:1.25rem; }
+  .setup-banner h3 { font-size:14px; font-weight:600; margin-bottom:.5rem; color:#7a5500; }
+  .setup-banner p  { font-size:12px; color:#8a6300; margin-bottom:.75rem; line-height:1.6; }
+  .setup-banner .cfg-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .setup-banner input { font-family:inherit; font-size:12px; padding:6px 10px; border:1px solid #d4a800; border-radius:6px; background:white; color:var(--text); flex:1; min-width:120px; }
+  .setup-banner .cfg-btn { padding:6px 14px; background:#f0a500; color:white; border:none; border-radius:6px; font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; }
+  .setup-banner .cfg-btn:hover { opacity:.88; }
+  /* Sync status */
+  .sync-status { font-size:11px; font-weight:600; padding:4px 10px; border-radius:6px; }
+  .sync-status.ok      { background:#e4f5ec; color:#1e6040; }
+  .sync-status.loading { background:#e8f1fc; color:#1e4d99; }
+  .sync-status.err     { background:#fde8e7; color:#7d1a13; }
+  .cfg-reset { font-size:11px; background:none; border:none; color:var(--muted); cursor:pointer; text-decoration:underline; padding:0; font-family:inherit; }
+  /* weekday toggle buttons */
+  .wd-btn { padding:4px 9px; border:1px solid var(--border); border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; background:var(--card); color:var(--muted); transition:all .12s; font-family:inherit; }
+  .wd-btn.on { background:var(--co); color:white; border-color:var(--co); }
+
+  /* Toast */
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(16px); background:#1a1917; color:white; padding:10px 20px; border-radius:8px; font-size:13px; font-weight:500; opacity:0; transition:opacity .2s, transform .2s; pointer-events:none; z-index:999; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  @media(max-width:700px) {
+    main { padding:1rem; }
+    header { padding:0 1rem; }
+    .seat { width:80px; height:66px; }
+    .island-4, .island-2, .island-3 { grid-template-columns:1fr 20px 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Sitzplatz-Planung <span>— Büroübersicht</span></div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('plan')">Büroplan</button>
+    <button class="tab" onclick="switchTab('kalender')">Kalender</button>
+  </div>
+</header>
+
+<main>
+  <!-- BÜROPLAN -->
+  <div id="view-plan" class="view active">
+    <!-- Setup banner (hidden once configured) -->
+    <div class="setup-banner" id="setup-banner">
+      <h3>⚙️ Einmalige Einrichtung — gemeinsame Datenspeicherung</h3>
+      <p>Trage unten die JSONBin-Zugangsdaten ein. Alle im Büro die dieselben Daten eingetragen haben, sehen und bearbeiten denselben Sitzplan.<br>Anleitung: Schritt 1–3 auf dem Zettel, den du erhalten hast.</p>
+      <div class="cfg-row">
+        <input type="text"     id="cfg-bin-id"  placeholder="Bin ID  (z.B. 664abc…)">
+        <input type="password" id="cfg-api-key" placeholder="API Key ($2a$…)">
+        <button class="cfg-btn" onclick="saveConfig()">Verbinden</button>
+      </div>
+    </div>
+    <div class="legend">
+      <span class="legend-label">Abteilung:</span>
+      <div class="legend-item"><div class="leg-dot" style="background:var(--co)"></div> CO</div>
+      <div class="legend-item"><div class="leg-dot" style="background:var(--bk)"></div> Buchhaltung</div>
+      <div class="legend-item"><div class="leg-dot" style="background:var(--im)"></div> IM</div>
+      <div class="legend-item"><div class="leg-dot" style="background:var(--hr)"></div> HR</div>
+      <div class="legend-item"><div class="leg-dot" style="background:var(--it)"></div> IT</div>
+      <div class="legend-item"><div class="leg-dot" style="background:#ddd"></div> Frei</div>
+    </div>
+
+    <div class="date-bar" id="date-bar">
+      <label>Datum:</label>
+      <div class="date-display" id="date-display" onclick="toggleMiniCal()">
+        <span id="date-display-txt">—</span>
+        <span class="weekday" id="date-display-wd"></span>
+        <span style="margin-left:auto;color:var(--muted);font-size:12px;">▾</span>
+      </div>
+      <!-- Mini calendar dropdown -->
+      <div class="mini-cal-wrap" id="mini-cal">
+        <div class="mini-cal-nav">
+          <button onclick="miniCalShift(-1)">‹</button>
+          <span class="mini-cal-title" id="mini-cal-title"></span>
+          <button onclick="miniCalShift(1)">›</button>
+        </div>
+        <div class="mini-cal-grid" id="mini-cal-grid"></div>
+      </div>
+      <div class="date-nav">
+        <button onclick="shiftDate(-1)">‹ Vorher</button>
+        <button onclick="shiftDate(1)">Nächster ›</button>
+      </div>
+      <button class="today-btn" onclick="goToday()">Heute</button>
+      <button class="save-btn" id="save-btn" onclick="exportData()">⬇ Speichern</button>
+      <span class="sync-status err" id="sync-status">Nicht verbunden</span>
+      <button class="cfg-reset" onclick="resetConfig()">Verbindung ändern</button>
+    </div>
+
+    <div class="office" id="office"></div>
+    <p style="font-size:11px;color:var(--muted);margin-top:10px;text-align:center">Klicke auf einen Platz, um eine Buchung zu erstellen oder zu bearbeiten.</p>
+  </div>
+
+  <!-- KALENDER -->
+  <div id="view-kalender" class="view">
+    <div class="legend" style="margin-bottom:1rem">
+      <span class="legend-label">Abteilung:</span>
+      <div class="legend-item"><div class="leg-dot" style="background:var(--co)"></div> CO</div>
+      <div class="legend-item"><div class="leg-dot" style="background:var(--bk)"></div> Buchhaltung</div>
+      <div class="legend-item"><div class="leg-dot" style="background:var(--im)"></div> IM</div>
+      <div class="legend-item"><div class="leg-dot" style="background:var(--hr)"></div> HR</div>
+      <div class="legend-item"><div class="leg-dot" style="background:var(--it)"></div> IT</div>
+    </div>
+    <div class="cal-header-bar">
+      <span class="cal-month-title" id="cal-title"></span>
+      <div class="cal-nav-btns">
+        <button onclick="changeMonth(-1)">‹</button>
+        <button onclick="goTodayCal()">Heute</button>
+        <button onclick="changeMonth(1)">›</button>
+      </div>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
+  </div>
+</main>
+
+<!-- Modal -->
+<div class="modal-bg" id="modal-bg" onclick="closeModalBg(event)">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">Platz buchen</div>
+    <div class="form-row inline">
+      <div><label>Vorname</label><input type="text" id="f-vorname" placeholder="Anna"></div>
+      <div><label>Nachname</label><input type="text" id="f-nachname" placeholder="Müller"></div>
+    </div>
+    <div class="form-row">
+      <label>Datum</label>
+      <input type="date" id="f-datum">
+    </div>
+    <div class="form-row">
+      <label>Abteilung der Person</label>
+      <div class="dept-select-grid" id="f-dept-grid"></div>
+    </div>
+    <div class="form-row">
+      <label>Zeitraum</label>
+      <select id="f-zeit">
+        <option value="Ganzer Tag">Ganzer Tag</option>
+        <option value="Vormittag">Vormittag (08:00–12:00)</option>
+        <option value="Nachmittag">Nachmittag (13:00–17:00)</option>
+      </select>
+    </div>
+    <!-- Serie -->
+    <div class="form-row" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text);font-size:13px;">
+        <input type="checkbox" id="f-serie" style="width:auto;padding:0;margin:0;accent-color:var(--co);width:16px;height:16px;"> Seriebuchung
+      </label>
+    </div>
+    <div id="serie-fields" style="display:none;background:var(--bg);border-radius:8px;padding:12px;margin-bottom:4px;">
+      <div class="form-row">
+        <label>Enddatum der Serie</label>
+        <input type="date" id="f-serie-end">
+      </div>
+      <div class="form-row">
+        <label>Wiederholung</label>
+        <select id="f-serie-type">
+          <option value="daily">Täglich (Mo–So)</option>
+          <option value="workday">Täglich (Mo–Fr)</option>
+          <option value="weekly" selected>Wöchentlich (Wochentage wählen)</option>
+          <option value="biweekly">Alle 2 Wochen</option>
+          <option value="monthly">Monatlich (selber Wochentag)</option>
+        </select>
+      </div>
+      <div class="form-row" id="weekday-row">
+        <label>Wochentage</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;" id="weekday-btns"></div>
+      </div>
+      <div id="serie-preview" style="font-size:11px;color:var(--co-t);font-weight:500;min-height:16px;"></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">Abbrechen</button>
+      <button class="btn-delete" id="btn-delete" onclick="deleteBooking()">Löschen</button>
+      <button class="btn-save" onclick="saveBooking()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const DEPTS = {
+  co: { name:'CO',          color:'#3a7bd5', light:'#e8f1fc', text:'#1e4d99', seats:['CO-1','CO-2','CO-3','CO-4'] },
+  bk: { name:'Buchhaltung', color:'#3e9c6a', light:'#e4f5ec', text:'#1e6040', seats:['BK-1','BK-2','BK-3','BK-4'] },
+  im: { name:'IM',          color:'#8a5dc8', light:'#f0e9fa', text:'#5a3490', seats:['IM-1','IM-2','IM-3','IM-4'] },
+  hr: { name:'HR',          color:'#d4813a', light:'#fdf0e2', text:'#8c4e1a', seats:['HR-1','HR-2'] },
+  it: { name:'IT',          color:'#c0392b', light:'#fde8e7', text:'#7d1a13', seats:['IT-1','IT-2','IT-3'] },
+};
+const SEAT_DEPT = {};
+Object.entries(DEPTS).forEach(([k,d]) => d.seats.forEach(s => SEAT_DEPT[s] = k));
+
+// ── JSONBin Backend ──
+let BIN_ID  = localStorage.getItem('sp_bin_id')  || '';
+let API_KEY = localStorage.getItem('sp_api_key') || '';
+let bookings = {};
+let isSaving = false;
+
+function isConfigured() { return BIN_ID && API_KEY; }
+
+async function loadFromBin() {
+  if (!isConfigured()) { renderOffice(); renderCal(); return; }
+  setStatus('Lade Daten…', 'loading');
+  try {
+    const r = await fetch('https://api.jsonbin.io/v3/b/' + BIN_ID + '/latest', {
+      headers: { 'X-Master-Key': API_KEY }
+    });
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    bookings = data.record || {};
+    try { localStorage.setItem('sp3_bookings', JSON.stringify(bookings)); } catch(e) {}
+    renderOffice(); renderCal();
+    setStatus('Verbunden ✓', 'ok');
+  } catch(e) {
+    setStatus('Fehler beim Laden', 'err');
+    renderOffice(); renderCal();
+  }
+}
+
+async function save() {
+  try { localStorage.setItem('sp3_bookings', JSON.stringify(bookings)); } catch(e) {}
+  if (!isConfigured() || isSaving) return;
+  isSaving = true;
+  setStatus('Speichert…', 'loading');
+  try {
+    const r = await fetch('https://api.jsonbin.io/v3/b/' + BIN_ID, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
+      body: JSON.stringify(bookings)
+    });
+    if (!r.ok) throw new Error(r.status);
+    setStatus('Gespeichert ✓', 'ok');
+  } catch(e) {
+    setStatus('Speicherfehler!', 'err');
+  } finally { isSaving = false; }
+}
+
+function setStatus(msg, state) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'sync-status ' + state;
+}
+
+function saveConfig() {
+  const bid = document.getElementById('cfg-bin-id').value.trim();
+  const key = document.getElementById('cfg-api-key').value.trim();
+  if (!bid || !key) { alert('Bitte beide Felder ausfüllen.'); return; }
+  BIN_ID = bid; API_KEY = key;
+  localStorage.setItem('sp_bin_id', BIN_ID);
+  localStorage.setItem('sp_api_key', API_KEY);
+  document.getElementById('setup-banner').style.display = 'none';
+  loadFromBin();
+}
+
+function resetConfig() {
+  if (!confirm('Verbindung trennen?')) return;
+  localStorage.removeItem('sp_bin_id'); localStorage.removeItem('sp_api_key');
+  BIN_ID = ''; API_KEY = '';
+  document.getElementById('setup-banner').style.display = 'block';
+  setStatus('Nicht verbunden', 'err');
+}
+
+// Instant fallback from localStorage while bin loads
+try { bookings = JSON.parse(localStorage.getItem('sp3_bookings') || '{}'); } catch(e) {}
+
+const WEEKDAYS = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
+const MONTHS_DE = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+const DAYS_SHORT = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+
+function toISO(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function todayStr() { return toISO(new Date()); }
+function parseDate(s) { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); }
+function fmtDate(s) {
+  const d = parseDate(s);
+  return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
+}
+function weekdayOf(s) { return WEEKDAYS[parseDate(s).getDay()]; }
+
+// ── Selected date ──
+let currentDate = todayStr();
+
+function setDate(s) {
+  currentDate = s;
+  document.getElementById('date-display-txt').textContent = fmtDate(s);
+  document.getElementById('date-display-wd').textContent = weekdayOf(s);
+  closeMiniCal();
+  renderOffice();
+  renderMiniCal();
+}
+
+function shiftDate(n) {
+  const d = parseDate(currentDate);
+  d.setDate(d.getDate() + n);
+  setDate(toISO(d));
+}
+function goToday() { setDate(todayStr()); }
+
+// ── Mini calendar ──
+let miniYear, miniMonth;
+function initMiniCal() {
+  const now = parseDate(currentDate);
+  miniYear = now.getFullYear(); miniMonth = now.getMonth();
+}
+function toggleMiniCal() {
+  const el = document.getElementById('mini-cal');
+  if (el.classList.contains('open')) { el.classList.remove('open'); } 
+  else { initMiniCal(); renderMiniCal(); el.classList.add('open'); }
+}
+function closeMiniCal() { document.getElementById('mini-cal').classList.remove('open'); }
+function miniCalShift(n) {
+  miniMonth += n;
+  if (miniMonth > 11) { miniMonth = 0; miniYear++; }
+  if (miniMonth < 0)  { miniMonth = 11; miniYear--; }
+  renderMiniCal();
+}
+function renderMiniCal() {
+  document.getElementById('mini-cal-title').textContent = MONTHS_DE[miniMonth] + ' ' + miniYear;
+  const grid = document.getElementById('mini-cal-grid');
+  grid.innerHTML = '';
+  DAYS_SHORT.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'mini-day-name'; el.textContent = d; grid.appendChild(el);
+  });
+  const firstDow = (new Date(miniYear, miniMonth, 1).getDay() + 6) % 7;
+  const daysInMonth = new Date(miniYear, miniMonth + 1, 0).getDate();
+  const prevDays = new Date(miniYear, miniMonth, 0).getDate();
+  const today = todayStr();
+  for (let i = 0; i < firstDow; i++) {
+    const el = document.createElement('div');
+    el.className = 'mini-day other';
+    el.textContent = prevDays - firstDow + i + 1;
+    grid.appendChild(el);
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = miniYear + '-' + String(miniMonth+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+    const el = document.createElement('div');
+    const isToday = dateStr === today, isSelected = dateStr === currentDate;
+    el.className = 'mini-day' + (isSelected ? ' selected' : isToday ? ' today' : '');
+    el.textContent = day;
+    el.onclick = () => setDate(dateStr);
+    grid.appendChild(el);
+  }
+  const total = firstDow + daysInMonth;
+  const rem = total % 7 === 0 ? 0 : 7 - (total % 7);
+  for (let i = 1; i <= rem; i++) {
+    const el = document.createElement('div'); el.className = 'mini-day other'; el.textContent = i; grid.appendChild(el);
+  }
+}
+document.addEventListener('click', e => {
+  const bar = document.getElementById('date-bar');
+  if (!bar.contains(e.target)) closeMiniCal();
+});
+
+// ── Office rendering (island layout) ──
+// Layout: seats arranged around a central table
+// For a 4-seat island: TL, TR on top row; BL, BR on bottom; table in center
+// Grid: col1=left seats, col2=table, col3=right seats; row1=top, row2=table, row3=bottom
+function makeSeat(seatId, date) {
+  const key = seatId + '__' + date;
+  const bk = bookings[key];
+  const el = document.createElement('div');
+  el.className = 'seat' + (bk ? ' booked' : '');
+  if (bk) {
+    const pdKey = bk.personDept || bk.dept;
+    const pd = DEPTS[pdKey];
+    const ts = bk.zeit === 'Ganzer Tag' ? 'GT' : bk.zeit === 'Vormittag' ? 'VM' : 'NM';
+    el.style.background = pd.light;
+    el.style.borderColor = pd.color;
+    const serieIcon = bk.serieId ? ' 🔁' : '';
+    el.innerHTML = `<div class="seat-id">${seatId}${serieIcon}</div><div class="seat-name-txt" style="color:${pd.text}">${bk.vorname}<br>${bk.nachname}</div><div class="seat-time-txt" style="color:${pd.color}">${pd.name} · ${ts}</div>`;
+  } else {
+    el.innerHTML = `<div class="seat-id">${seatId}</div><div class="seat-empty-txt">Frei</div>`;
+  }
+  el.onclick = () => openModal(seatId, date, bk || null);
+  return el;
+}
+
+function makeIsland4(seats, date) {
+  const wrap = document.createElement('div');
+  wrap.className = 'island-4';
+  const tl = makeSeat(seats[0], date); tl.style.gridColumn='1'; tl.style.gridRow='1';
+  const tr = makeSeat(seats[1], date); tr.style.gridColumn='3'; tr.style.gridRow='1';
+  const gap = document.createElement('div'); gap.className='table-gap-4';
+  const bl = makeSeat(seats[2], date); bl.style.gridColumn='1'; bl.style.gridRow='2';
+  const br = makeSeat(seats[3], date); br.style.gridColumn='3'; br.style.gridRow='2';
+  [tl, tr, gap, bl, br].forEach(e => wrap.appendChild(e));
+  return wrap;
+}
+
+function makeIsland2(seats, date) {
+  const wrap = document.createElement('div');
+  wrap.className = 'island-2';
+  const l = makeSeat(seats[0], date); l.style.gridColumn='1';
+  const gap = document.createElement('div'); gap.className='table-gap-2';
+  const r = makeSeat(seats[1], date); r.style.gridColumn='3';
+  [l, gap, r].forEach(e => wrap.appendChild(e));
+  return wrap;
+}
+
+function makeIsland3(seats, date) {
+  const wrap = document.createElement('div');
+  wrap.className = 'island-3';
+  const tl = makeSeat(seats[0], date); tl.style.gridColumn='1'; tl.style.gridRow='1';
+  const tr = makeSeat(seats[1], date); tr.style.gridColumn='3'; tr.style.gridRow='1';
+  const gap = document.createElement('div'); gap.className='table-gap-4';
+  const bl = makeSeat(seats[2], date); bl.style.gridColumn='1'; bl.style.gridRow='2';
+  const sp = document.createElement('div'); sp.className='seat-spacer'; sp.style.gridColumn='3'; sp.style.gridRow='2';
+  [tl, tr, gap, bl, sp].forEach(e => wrap.appendChild(e));
+  return wrap;
+}
+
+const OFFICE_STRUCTURE = [
+  { type:'wall' },
+  { type:'dept', id:'co' },
+  { type:'divider', label:'Trennwand' },
+  { type:'dept', id:'im' },
+  { type:'divider', label:'Trennwand' },
+  { type:'dept', id:'bk' },
+  { type:'dept', id:'hr' },
+  { type:'dept', id:'it' },
+  { type:'wall' },
+];
+
+function renderOffice() {
+  const date = currentDate;
+  const el = document.getElementById('office');
+  el.innerHTML = '';
+
+  OFFICE_STRUCTURE.forEach(s => {
+    if (s.type === 'wall') {
+      const d = document.createElement('div'); d.className = 'office-wall'; el.appendChild(d);
+    } else if (s.type === 'divider') {
+      const d = document.createElement('div'); d.className = 'office-divider';
+      d.innerHTML = `<span>${s.label}</span>`; el.appendChild(d);
+    } else {
+      const dept = DEPTS[s.id];
+      const block = document.createElement('div'); block.className = 'dept-block'; block.style.width = '100%';
+      const hdr = document.createElement('div'); hdr.className = 'dept-header';
+      hdr.style.background = dept.light;
+      hdr.innerHTML = `<div class="dept-dot" style="background:${dept.color}"></div><span>${dept.name}</span>`;
+      block.appendChild(hdr);
+
+      const area = document.createElement('div'); area.className = 'island-area';
+      const seats = dept.seats;
+      let island;
+      if (seats.length === 4) island = makeIsland4(seats, date);
+      else if (seats.length === 2) island = makeIsland2(seats, date);
+      else island = makeIsland3(seats, date);
+      area.appendChild(island);
+      block.appendChild(area);
+      el.appendChild(block);
+    }
+  });
+}
+
+// ── Modal ──
+let modalSeat = null, modalDate = null, editKey = null, selectedPersonDept = null;
+let selectedWeekdays = new Set([1,2,3,4,5]); // Mon-Fri default
+
+function renderDeptGrid(current) {
+  const grid = document.getElementById('f-dept-grid');
+  grid.innerHTML = '';
+  Object.entries(DEPTS).forEach(([key, dept]) => {
+    const opt = document.createElement('div');
+    opt.className = 'dept-opt' + (key === current ? ' selected' : '');
+    if (key === current) { opt.style.borderColor = dept.color; opt.style.background = dept.light; opt.style.color = dept.text; }
+    opt.innerHTML = `<div class="d-dot" style="background:${dept.color}"></div>${dept.name}`;
+    opt.onclick = () => { selectedPersonDept = key; renderDeptGrid(key); };
+    grid.appendChild(opt);
+  });
+}
+
+function renderWeekdayBtns() {
+  const container = document.getElementById('weekday-btns');
+  container.innerHTML = '';
+  // JS getDay(): 0=Sun,1=Mon...6=Sat. We show Mo=1..So=0
+  const labels = [['Mo',1],['Di',2],['Mi',3],['Do',4],['Fr',5],['Sa',6],['So',0]];
+  labels.forEach(([lbl, dow]) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'wd-btn' + (selectedWeekdays.has(dow) ? ' on' : '');
+    btn.textContent = lbl;
+    btn.onclick = (e) => {
+      e.preventDefault();
+      if (selectedWeekdays.has(dow)) selectedWeekdays.delete(dow);
+      else selectedWeekdays.add(dow);
+      renderWeekdayBtns();
+      updateSeriePreview();
+    };
+    container.appendChild(btn);
+  });
+}
+
+function toggleSerie() {
+  const on = document.getElementById('f-serie').checked;
+  document.getElementById('serie-fields').style.display = on ? 'block' : 'none';
+  updateWeekdayRowVisibility();
+  if (on) updateSeriePreview();
+}
+
+function updateWeekdayRowVisibility() {
+  const stype = document.getElementById('f-serie-type').value;
+  document.getElementById('weekday-row').style.display = stype === 'weekly' ? 'block' : 'none';
+}
+
+function buildSerieDates(startStr, endStr, stype) {
+  const dates = [];
+  const endDate = parseDate(endStr);
+  let cur = parseDate(startStr);
+  const MAX = 500;
+
+  if (stype === 'daily') {
+    while (cur <= endDate && dates.length < MAX) {
+      dates.push(toISO(cur));
+      cur = new Date(cur); cur.setDate(cur.getDate() + 1);
+    }
+  } else if (stype === 'workday') {
+    while (cur <= endDate && dates.length < MAX) {
+      if (cur.getDay() !== 0 && cur.getDay() !== 6) dates.push(toISO(cur));
+      cur = new Date(cur); cur.setDate(cur.getDate() + 1);
+    }
+  } else if (stype === 'weekly') {
+    while (cur <= endDate && dates.length < MAX) {
+      if (selectedWeekdays.has(cur.getDay())) dates.push(toISO(cur));
+      cur = new Date(cur); cur.setDate(cur.getDate() + 1);
+    }
+  } else if (stype === 'biweekly') {
+    while (cur <= endDate && dates.length < MAX) {
+      dates.push(toISO(cur));
+      cur = new Date(cur); cur.setDate(cur.getDate() + 14);
+    }
+  } else if (stype === 'monthly') {
+    while (cur <= endDate && dates.length < MAX) {
+      dates.push(toISO(cur));
+      cur = new Date(cur); cur.setMonth(cur.getMonth() + 1);
+    }
+  }
+  return dates;
+}
+
+function updateSeriePreview() {
+  if (!document.getElementById('f-serie').checked) return;
+  const start = document.getElementById('f-datum').value;
+  const end   = document.getElementById('f-serie-end').value;
+  const stype = document.getElementById('f-serie-type').value;
+  const prev  = document.getElementById('serie-preview');
+  if (!start || !end) { prev.textContent = 'Bitte Enddatum wählen.'; return; }
+  if (parseDate(end) < parseDate(start)) { prev.textContent = 'Enddatum muss nach Startdatum liegen.'; return; }
+  if (stype === 'weekly' && selectedWeekdays.size === 0) { prev.textContent = 'Bitte mindestens einen Wochentag wählen.'; return; }
+  const dates = buildSerieDates(start, end, stype);
+  prev.textContent = dates.length === 0 ? 'Keine passenden Daten gefunden.' : `${dates.length} Buchung${dates.length !== 1 ? 'en' : ''} werden erstellt`;
+}
+
+// Wire up live preview on type/end changes (using oninput + onchange in HTML is fragile; use delegation here)
+function onSerieFieldChange(e) {
+  const id = e.target.id;
+  if (id === 'f-serie-type') { updateWeekdayRowVisibility(); updateSeriePreview(); }
+  if (id === 'f-serie-end' || id === 'f-datum') updateSeriePreview();
+}
+document.addEventListener('change', onSerieFieldChange);
+document.addEventListener('input',  onSerieFieldChange);
+
+function openModal(seat, date, existing) {
+  modalSeat = seat; modalDate = date;
+  selectedPersonDept = existing ? (existing.personDept || existing.dept) : SEAT_DEPT[seat];
+  selectedWeekdays = new Set([1,2,3,4,5]);
+  const seatDept = DEPTS[SEAT_DEPT[seat]];
+  document.getElementById('modal-title').innerHTML =
+    `${existing ? 'Buchung bearbeiten' : 'Platz buchen'} <span class="dept-badge" style="background:${seatDept.light};color:${seatDept.text}">${seat}</span>`;
+  document.getElementById('f-vorname').value = existing ? existing.vorname : '';
+  document.getElementById('f-nachname').value = existing ? existing.nachname : '';
+  document.getElementById('f-datum').value = date;
+  document.getElementById('f-zeit').value = existing ? existing.zeit : 'Ganzer Tag';
+  // reset serie
+  const serieChk = document.getElementById('f-serie');
+  serieChk.checked = false;
+  serieChk.onchange = toggleSerie;
+  document.getElementById('serie-fields').style.display = 'none';
+  document.getElementById('f-serie-end').value = '';
+  document.getElementById('f-serie-type').value = 'weekly';
+  document.getElementById('weekday-row').style.display = 'block';
+  document.getElementById('serie-preview').textContent = '';
+  renderDeptGrid(selectedPersonDept);
+  renderWeekdayBtns();
+  document.getElementById('btn-delete').style.display = existing ? 'block' : 'none';
+  editKey = existing ? (seat + '__' + date) : null;
+  document.getElementById('modal-bg').classList.add('open');
+  setTimeout(() => document.getElementById('f-vorname').focus(), 180);
+}
+function closeModal() { document.getElementById('modal-bg').classList.remove('open'); }
+function closeModalBg(e) { if (e.target === document.getElementById('modal-bg')) closeModal(); }
+
+function saveBooking() {
+  const v = document.getElementById('f-vorname').value.trim();
+  const n = document.getElementById('f-nachname').value.trim();
+  const d = document.getElementById('f-datum').value;
+  const z = document.getElementById('f-zeit').value;
+  if (!v || !n || !d) { showToast('Bitte alle Felder ausfüllen.'); return; }
+  if (!selectedPersonDept) { showToast('Bitte eine Abteilung wählen.'); return; }
+
+  const isSerie = document.getElementById('f-serie').checked;
+  const serieEnd = document.getElementById('f-serie-end').value;
+  const stype = document.getElementById('f-serie-type').value;
+  const bkData = { vorname:v, nachname:n, zeit:z, dept:SEAT_DEPT[modalSeat], personDept:selectedPersonDept };
+
+  if (isSerie) {
+    if (!serieEnd) { showToast('Bitte ein Enddatum für die Serie angeben.'); return; }
+    if (parseDate(serieEnd) < parseDate(d)) { showToast('Enddatum muss nach dem Startdatum liegen.'); return; }
+    if (stype === 'weekly' && selectedWeekdays.size === 0) { showToast('Bitte mindestens einen Wochentag wählen.'); return; }
+    const dates = buildSerieDates(d, serieEnd, stype);
+    if (dates.length === 0) { showToast('Keine Daten für diese Konfiguration gefunden.'); return; }
+    const serieId = modalSeat + '_' + v + n + '_' + d + '_' + Date.now();
+    if (editKey) delete bookings[editKey];
+    dates.forEach(dateStr => {
+      bookings[modalSeat + '__' + dateStr] = { ...bkData, serieId };
+    });
+    save(); closeModal(); renderOffice(); renderCal();
+    showToast(`${dates.length} Seriebuchungen gespeichert ✓`);
+  } else {
+    if (editKey) delete bookings[editKey];
+    bookings[modalSeat + '__' + d] = bkData;
+    save(); closeModal(); renderOffice(); renderCal();
+    showToast('Buchung gespeichert ✓');
+  }
+}
+
+function deleteBooking() {
+  if (!editKey) { closeModal(); return; }
+  const bk = bookings[editKey];
+  if (bk && bk.serieId) {
+    const allSerie = Object.keys(bookings).filter(k => bookings[k].serieId === bk.serieId);
+    if (allSerie.length > 1 && confirm(`Diese Buchung gehört zu einer Serie (${allSerie.length} Einträge). Alle Seriebuchungen löschen?\n\nOK = Alle löschen | Abbrechen = Nur diese`)) {
+      allSerie.forEach(k => delete bookings[k]);
+    } else {
+      delete bookings[editKey];
+    }
+  } else {
+    delete bookings[editKey];
+  }
+  save(); closeModal(); renderOffice(); renderCal();
+  showToast('Buchung gelöscht');
+}
+
+// ── Export / Save ──
+function exportData() {
+  const blob = new Blob([JSON.stringify(bookings, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'sitzplan-buchungen.json';
+  a.click();
+  const btn = document.getElementById('save-btn');
+  btn.classList.add('saved'); btn.textContent = '✓ Gespeichert';
+  setTimeout(() => { btn.classList.remove('saved'); btn.textContent = '⬇ Speichern'; }, 2000);
+}
+
+// ── Toast ──
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// ── Calendar tab ──
+let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
+
+function renderCal() {
+  document.getElementById('cal-title').textContent = MONTHS_DE[calMonth] + ' ' + calYear;
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '';
+  DAYS_SHORT.forEach(d => {
+    const el = document.createElement('div'); el.className = 'cal-day-name'; el.textContent = d; grid.appendChild(el);
+  });
+  const firstDow = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const prevDays = new Date(calYear, calMonth, 0).getDate();
+  const today = todayStr();
+  for (let i = 0; i < firstDow; i++) {
+    const el = document.createElement('div'); el.className = 'cal-day other-month';
+    el.innerHTML = `<div class="cal-daynum">${prevDays - firstDow + i + 1}</div>`; grid.appendChild(el);
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+    const el = document.createElement('div');
+    el.className = 'cal-day' + (dateStr === today ? ' today' : '');
+    el.innerHTML = `<div class="cal-daynum">${day}</div>`;
+    Object.entries(bookings).filter(([k]) => k.endsWith('__' + dateStr)).slice(0, 4).forEach(([k, bk]) => {
+      const seat = k.split('__')[0];
+      const pd = DEPTS[bk.personDept || bk.dept];
+      const chip = document.createElement('div');
+      chip.className = 'cal-entry';
+      chip.style.background = pd.light; chip.style.color = pd.text;
+      const ts = bk.zeit === 'Ganzer Tag' ? '◆' : bk.zeit === 'Vormittag' ? 'VM' : 'NM';
+      chip.textContent = `${ts} ${bk.vorname} ${bk.nachname[0]}. (${seat})`;
+      el.appendChild(chip);
+    });
+    const more = Object.keys(bookings).filter(k => k.endsWith('__' + dateStr)).length - 4;
+    if (more > 0) { const m = document.createElement('div'); m.style.cssText='font-size:9px;color:var(--muted);padding:1px 2px'; m.textContent=`+${more} weitere`; el.appendChild(m); }
+    el.onclick = () => { setDate(dateStr); switchTab('plan'); };
+    grid.appendChild(el);
+  }
+  const total = firstDow + daysInMonth;
+  const rem = total % 7 === 0 ? 0 : 7 - (total % 7);
+  for (let i = 1; i <= rem; i++) {
+    const el = document.createElement('div'); el.className = 'cal-day other-month';
+    el.innerHTML = `<div class="cal-daynum">${i}</div>`; grid.appendChild(el);
+  }
+}
+function changeMonth(n) {
+  calMonth += n;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  if (calMonth < 0)  { calMonth = 11; calYear--; }
+  renderCal();
+}
+function goTodayCal() { calYear = new Date().getFullYear(); calMonth = new Date().getMonth(); renderCal(); }
+
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach((el, i) => el.classList.toggle('active', ['plan','kalender'][i] === t));
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  document.getElementById('view-' + t).classList.add('active');
+}
+
+// Init
+setDate(todayStr());
+renderCal();
+// Show/hide setup banner based on config
+if (isConfigured()) {
+  document.getElementById('setup-banner').style.display = 'none';
+  loadFromBin();
+} else {
+  renderOffice();
+  renderCal();
+}
+// Auto-refresh every 30s so others' changes appear
+setInterval(() => { if (isConfigured()) loadFromBin(); }, 30000);
+</script>
+</body>
+</html>
